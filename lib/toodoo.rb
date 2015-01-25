@@ -5,6 +5,15 @@ require 'pry'
 
 module Toodoo
   class User < ActiveRecord::Base
+    has_many :lists
+  end
+
+  class Lists < ActiveRecord::Base
+    has_many :tasks
+  end
+
+  class Tasks < ActiveRecord::Base
+    belongs_to :tasks, through: :lists
   end
 end
 
@@ -12,6 +21,7 @@ class TooDooApp
   def initialize
     @user = nil
     @todos = nil
+    @tasks = nil
     @show_done = nil
   end
 
@@ -25,7 +35,6 @@ class TooDooApp
   def login
     choose do |menu|
       menu.prompt = "Please choose an account: "
-
       Toodoo::User.find_each do |u|
         menu.choice(u.name, "Login as #{u.name}.") { @user = u }
       end
@@ -39,10 +48,10 @@ class TooDooApp
 
   def delete_user
     choices = 'yn'
-    delete = ask("Are you *sure* you want to stop using TooDoo?") do |q|
-      q.validate =/\A[#{choices}]\Z/
-      q.character = true
-      q.confirm = true
+    delete = ask("Are you *sure* you want to stop using TooDoo?") do |d|
+      d.validate =/\A[#{choices}]\Z/
+      d.character = true
+      d.confirm = true
     end
     if delete == 'y'
       @user.destroy
@@ -51,6 +60,11 @@ class TooDooApp
   end
 
   def new_todo_list
+    say("Alright!")
+    title = ask("What would you like to title this new list?") { |q| q.validate = /\A\w+\Z/ }
+    @todos = Toodoo::Lists.create(:title => title)
+    @todos.save
+    say("New list #{@todos.title} created!")
     # TODO: This should create a new todo list by getting input from the user.
     # The user should not have to tell you their id.
     # Create the todo list in the database and update the @todos variable.
@@ -58,6 +72,10 @@ class TooDooApp
 
   def pick_todo_list
     choose do |menu|
+      menu.prompt = "Please choose a list: "
+      Toodoo::Lists.find_each do |l|
+        menu.choice(l.title, "#{l.title}.") { @todos = l }
+      end
       # TODO: This should get get the todo lists for the logged in user (@user).
       # Iterate over them and add a menu.choice line as seen under the login method's
       # find_each call. The menu choice block should set @todos to the todo list.
@@ -70,23 +88,56 @@ class TooDooApp
   end
 
   def delete_todo_list
+    choices = 'yn'
+    delete = ask("Are you *sure* you want to delete the list?") do |q|
+      q.validate =/\A[#{choices}]\Z/
+      q.character = true
+      q.confirm = true
+    end
+    if delete == 'y'
+      @todos.destroy
+      @todos = nil
+    end
     # TODO: This should confirm that the user wants to delete the todo list.
     # If they do, it should destroy the current todo list and set @todos to nil.
   end
 
   def new_task
+    say ("Okay!")
+    add_new = ask("What would you like to add?") { |q| q.validate = /^[a-zA-Z\s.?]*$/ }
+    @tasks = Toodoo::Tasks.create(:add_new => add_new)
+    @tasks.save
+    say("New task added to #{@todos.title} list!")
     # TODO: This should create a new task on the current user's todo list.
     # It must take any necessary input from the user. A due date is optional.
   end
 
   ## NOTE: For the next 3 methods, make sure the change is saved to the database.
   def mark_done
+    choose do |menu|
+      menu.prompt = "#{@todos.title} list:"
+      Toodoo::Tasks.find_each do |t|
+        menu.choice(t.add_new, "#{t.add_new}.") { @tasks = t }
+      end
+    if @tasks 
+
+    end
     # TODO: This should display the todos on the current list in a menu
     # similarly to pick_todo_list. Once they select a todo, the menu choice block
     # should update the todo to be completed.
   end
 
   def change_due_date
+    choose do |menu|
+      menu.prompt = "P"
+      Toodoo::Tasks. do |l|
+        menu.choice(l.add_new, "#{l.add_new}.") { @tasks = l }
+      end
+      menu.choice(:back, "Just kidding, back to the main menu!") do
+        say "You got it!"
+        @todos = nil
+      end
+    end
     # TODO: This should display the todos on the current list in a menu
     # similarly to pick_todo_list. Once they select a todo, the menu choice block
     # should update the due date for the todo. You probably want to use
@@ -110,7 +161,7 @@ class TooDooApp
     puts "Welcome to your personal TooDoo app."
     loop do
       choose do |menu|
-        menu.layout = :menu_only
+        #menu.layout = :menu_only
         menu.shell = true
 
         # Are we logged in yet?
@@ -147,7 +198,6 @@ class TooDooApp
   end
 end
 
-binding.pry
 
 todos = TooDooApp.new
 todos.run
